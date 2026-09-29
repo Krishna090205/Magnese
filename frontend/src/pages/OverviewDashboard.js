@@ -1,184 +1,199 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import axios from 'axios';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import SourceTagBadge from '../components/SourceTagBadge';
+import React, { useState } from 'react';
+import EnterpriseLayout from '../components/EnterpriseLayout';
 
-const API_BASE = 'http://localhost:8000';
+const OverviewDashboard = () => {
+  const [activeLayers, setActiveLayers] = useState({
+    oreGrade: true,
+    haulRoads: true,
+    fleetLive: true,
+    geologicalBlocks: false
+  });
+  const [dimensionMode, setDimensionMode] = useState('3D');
 
-function OverviewDashboard() {
-  const [overview, setOverview] = useState(null);
-  const [alerts, setAlerts] = useState([]);
-  const [productionData, setProductionData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch overview data
-      const overviewRes = await axios.get(`${API_BASE}/api/overview`);
-      setOverview(overviewRes.data);
-      
-      // Fetch alerts
-      const alertsRes = await axios.get(`${API_BASE}/api/alerts?limit=10`);
-      setAlerts(alertsRes.data.alerts);
-      
-      // Fetch production data for trend chart
-      const minesRes = await axios.get(`${API_BASE}/api/mines`);
-      const mines = minesRes.data;
-      
-      // Get production data for each mine
-      const productionPromises = mines.slice(0, 5).map(async (mine) => {
-        try {
-          const prodRes = await axios.get(`${API_BASE}/api/mines/${mine.id}/production`);
-          return {
-            name: mine.name,
-            data: prodRes.data.slice(-30) // Last 30 days
-          };
-        } catch (e) {
-          return { name: mine.name, data: [] };
-        }
-      });
-      
-      const productionResults = await Promise.all(productionPromises);
-      
-      // Format for chart
-      const chartData = productionResults.flatMap(mine => 
-        mine.data.map(record => ({
-          date: record.record_date,
-          mine: mine.name,
-          production: record.ore_extracted_tonnes || 0,
-          shortfall: record.shortfall_tonnes || 0
-        }))
-      );
-      
-      setProductionData(chartData);
-      setLoading(false);
-      
-    } catch (err) {
-      console.error('Error fetching overview data:', err);
-      setError('Failed to load dashboard data');
-      setLoading(false);
-    }
+  const toggleLayer = (key) => {
+    setActiveLayers(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  if (loading) {
-    return <div className="loading">Loading dashboard...</div>;
-  }
-
-  if (error) {
-    return <div className="error">{error}</div>;
-  }
-
   return (
-    <div className="dashboard-page">
-      <div className="page-header">
-        <h2>Overview Dashboard</h2>
-        <SourceTagBadge sourceTag={overview?.source_tag_provenance ? 'SYNTHETIC' : 'SYNTHETIC'} size="large" />
-      </div>
-
-      {/* Portfolio Cards */}
-      <div className="portfolio-cards">
-        <div className="card" onClick={() => window.location.href = '/production'}>
-          <h3>Mines Monitored</h3>
-          <div className="card-value">{overview?.mines_monitored || 0}</div>
-          <div className="card-label">Active mines in system</div>
-          <SourceTagBadge sourceTag="REAL_PUBLIC" />
-        </div>
-
-        <div className="card alert-card" onClick={() => window.location.href = '/production'}>
-          <h3>Active Shortfall Alerts</h3>
-          <div className="card-value alert">{overview?.active_shortfall_alerts || 0}</div>
-          <div className="card-label">Predictions ≥5% risk</div>
-          <SourceTagBadge sourceTag="SYNTHETIC" />
-        </div>
-
-        <div className="card target-card" onClick={() => window.location.href = '/exploration'}>
-          <h3>Exploration Targets</h3>
-          <div className="card-value target">{overview?.active_exploration_targets || 0}</div>
-          <div className="card-label">High-confidence reserve predictions</div>
-          <SourceTagBadge sourceTag="SYNTHETIC" />
-        </div>
-
-        <div className="card">
-          <h3>Data Freshness</h3>
-          <div className="card-value">
-            {overview?.data_freshness?.latest_shortfall_prediction 
-              ? new Date(overview.data_freshness.latest_shortfall_prediction).toLocaleDateString()
-              : 'N/A'}
+    <EnterpriseLayout 
+      pageTitle="Good Morning, Krishna" 
+      pageSubtitle="Here's what's happening at Balaghat Mine today."
+      selectedMineId={2}
+    >
+      <div className="dashboard-content-screen">
+        {/* Row of 4 Clean KPI Cards */}
+        <div className="dashboard-kpi-row-4">
+          {/* Card 1 */}
+          <div className="dash-kpi-card">
+            <div className="kpi-icon-square blue">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2">
+                <rect x="1" y="3" width="15" height="13" rx="2"/>
+                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/>
+                <circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+            </div>
+            <div className="kpi-details">
+              <div className="kpi-main-number">33,000 T</div>
+              <div className="kpi-desc-label">Current Shift Output</div>
+              <span className="kpi-badge-tag green">↑ 6%</span>
+            </div>
           </div>
-          <div className="card-label">Latest prediction date</div>
-          <SourceTagBadge sourceTag="SYNTHETIC" />
-        </div>
-      </div>
 
-      {/* Production vs Plan Trend Chart */}
-      <div className="chart-section">
-        <h3>Production vs Plan Trend (Last 30 Days)</h3>
-        <div className="chart-container">
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={productionData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="production" stroke="#3b82f6" name="Actual Production" />
-              <Line type="monotone" dataKey="shortfall" stroke="#ef4444" name="Shortfall" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <SourceTagBadge sourceTag="SYNTHETIC" />
-      </div>
+          {/* Card 2 */}
+          <div className="dash-kpi-card">
+            <div className="kpi-icon-square teal">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <div className="kpi-details">
+              <div className="kpi-main-number">-8.2%</div>
+              <div className="kpi-desc-label">Shortfall Risk</div>
+              <span className="kpi-badge-tag green">On Track</span>
+            </div>
+          </div>
 
-      {/* Alert List */}
-      <div className="alerts-section">
-        <h3>Recent Alerts</h3>
-        <div className="alerts-list">
-          {alerts.length === 0 ? (
-            <p className="no-alerts">No active alerts</p>
-          ) : (
-            alerts.map((alert) => (
-              <div 
-                key={alert.id} 
-                className={`alert-item ${alert.severity}`}
-                onClick={() => alert.type === 'shortfall' 
-                  ? (window.location.href = '/production') 
-                  : (window.location.href = '/exploration')
-                }
-              >
-                <div className="alert-header">
-                  <span className="alert-type">{alert.type.toUpperCase()}</span>
-                  <span className={`alert-severity ${alert.severity}`}>{alert.severity}</span>
-                </div>
-                <div className="alert-mine">{alert.mine_name}</div>
-                <div className="alert-details">
-                  {alert.type === 'shortfall' ? (
-                    <>
-                      <span>Predicted Shortfall: {alert.predicted_shortfall_tonnes?.toFixed(2)} tonnes</span>
-                      <span>Risk: {(alert.probability * 100).toFixed(1)}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Predicted Reserve: {alert.predicted_reserve_tonnes?.toFixed(2)} tonnes</span>
-                      <span>Confidence: {(alert.confidence_level * 100).toFixed(0)}%</span>
-                    </>
-                  )}
-                </div>
-                <SourceTagBadge sourceTag={alert.source_tag} />
-              </div>
-            ))
-          )}
+          {/* Card 3 */}
+          <div className="dash-kpi-card">
+            <div className="kpi-icon-square indigo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <div className="kpi-details">
+              <div className="kpi-main-number">94%</div>
+              <div className="kpi-desc-label">Equipment Health</div>
+              <span className="kpi-badge-tag green">↑ 2%</span>
+            </div>
+          </div>
+
+          {/* Card 4 */}
+          <div className="dash-kpi-card">
+            <div className="kpi-icon-square amber">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            </div>
+            <div className="kpi-details">
+              <div className="kpi-main-number">28°C</div>
+              <div className="kpi-desc-label">Clear Weather</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Central Map / Mine Visualization Container */}
+        <div className="dashboard-map-viewport">
+          <img 
+            src="/assets/dashboard_mine.jpg" 
+            alt="Balaghat Mine Pit Overview" 
+            className="pit-map-image"
+          />
+
+          {/* Left Vertical Map Controls */}
+          <div className="map-vertical-tools">
+            <button className="tool-round-btn">+</button>
+            <button className="tool-round-btn">-</button>
+            <button className="tool-round-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+              </svg>
+            </button>
+            <button className="tool-round-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Interactive Benches Pins */}
+          <div className="bench-pin-marker north-bench" style={{ top: '24%', left: '48%' }}>
+            <div className="pin-pulse-dot"></div>
+            <div className="bench-pin-card">
+              <span className="bench-name">North Bench</span>
+              <span className="bench-grade">Mn Grade: 46.2%</span>
+            </div>
+          </div>
+
+          <div className="bench-pin-marker central-pit" style={{ bottom: '26%', right: '32%' }}>
+            <div className="pin-pulse-dot"></div>
+            <div className="bench-pin-card">
+              <span className="bench-name">Central Pit</span>
+              <span className="bench-grade">Mn Grade: 41.8%</span>
+            </div>
+          </div>
+
+          {/* Top Right Floating Layer Selector Card */}
+          <div className="floating-layers-selector-card">
+            <label className="layer-item-checkbox">
+              <input 
+                type="checkbox" 
+                checked={activeLayers.oreGrade} 
+                onChange={() => toggleLayer('oreGrade')}
+              />
+              <span className="checkbox-custom">✓</span>
+              <span className="layer-item-text">Ore Grade</span>
+            </label>
+
+            <label className="layer-item-checkbox">
+              <input 
+                type="checkbox" 
+                checked={activeLayers.haulRoads} 
+                onChange={() => toggleLayer('haulRoads')}
+              />
+              <span className="checkbox-custom">✓</span>
+              <span className="layer-item-text">Haul Roads</span>
+            </label>
+
+            <label className="layer-item-checkbox">
+              <input 
+                type="checkbox" 
+                checked={activeLayers.fleetLive} 
+                onChange={() => toggleLayer('fleetLive')}
+              />
+              <span className="checkbox-custom">✓</span>
+              <span className="layer-item-text">Fleet Live</span>
+            </label>
+
+            <label className="layer-item-checkbox">
+              <input 
+                type="checkbox" 
+                checked={activeLayers.geologicalBlocks} 
+                onChange={() => toggleLayer('geologicalBlocks')}
+              />
+              <span className="checkbox-custom">{activeLayers.geologicalBlocks ? '✓' : ''}</span>
+              <span className="layer-item-text">Geological Blocks</span>
+            </label>
+          </div>
+
+          {/* Bottom Right 2D / 3D Switch Pill */}
+          <div className="dimension-toggle-pill">
+            <button 
+              className={`dim-btn ${dimensionMode === '2D' ? 'active' : ''}`}
+              onClick={() => setDimensionMode('2D')}
+            >
+              2D
+            </button>
+            <button 
+              className={`dim-btn ${dimensionMode === '3D' ? 'active' : ''}`}
+              onClick={() => setDimensionMode('3D')}
+            >
+              3D
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </EnterpriseLayout>
   );
-}
+};
 
 export default OverviewDashboard;
